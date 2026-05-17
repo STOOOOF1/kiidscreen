@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a3e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon-192.svg" type="image/svg+xml">
+  <title>KiidScreen</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    @media (display-mode: standalone) {
+      body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ SETUP (first-run) ═══════════════ -->
+<div id="screen-setup" class="screen active">
+  <div class="setup-box">
+    <h1>KiidScreen</h1>
+    <p class="subtitle">نظام حماية الأطفال من المحتوى الهابط</p>
+    <p style="color:#9e9e9e;font-size:0.9rem;margin-bottom:1.5rem;">
+      قم بإعداد رمز PIN للتحكم في التطبيق
+    </p>
+    <div class="form-group">
+      <label>رمز PIN (4-6 أرقام)</label>
+      <input type="password" id="setup-pin" inputmode="numeric" maxlength="6" placeholder="••••" dir="ltr" style="text-align:center;font-size:1.5rem;letter-spacing:8px;">
+    </div>
+    <div class="form-group">
+      <label>تأكيد رمز PIN</label>
+      <input type="password" id="setup-pin-confirm" inputmode="numeric" maxlength="6" placeholder="••••" dir="ltr" style="text-align:center;font-size:1.5rem;letter-spacing:8px;">
+    </div>
+    <div id="setup-error" style="color:#ef5350;font-size:0.85rem;min-height:1.2rem;margin-bottom:0.5rem;"></div>
+    <button class="btn btn-primary btn-block" id="setup-save">حفظ وبدء الاستخدام</button>
+  </div>
+</div>
+
+<!-- ═══════════════ KID MODE ═══════════════ -->
+<div id="screen-kid" class="screen">
+  <div id="kid-video-container">
+    <div id="kid-no-videos" style="display:none;">
+      <div class="icon">🎬</div>
+      <p>لا توجد فيديوهات للمشاهدة<br>اطلب من الوالدين إضافة فيديوهات</p>
+    </div>
+  </div>
+
+  <!-- Transparent click-capture overlay (prevents child from clicking YouTube links/controls) -->
+  <div id="kid-click-guard"></div>
+
+  <!-- Category tabs bar (child selects which category to watch) -->
+  <div id="kid-cat-bar"></div>
+
+  <!-- Hidden exit trigger (tap 5x) -->
+  <div id="kid-exit-trigger" title="خروج"></div>
+
+  <!-- Timer ring -->
+  <div id="kid-timer-ring" style="display:none;">
+    <svg width="56" height="56" viewBox="0 0 56 56">
+      <circle class="bg" cx="28" cy="28" r="22"/>
+      <circle class="progress" cx="28" cy="28" r="22"/>
+    </svg>
+    <div id="kid-timer-text">0:00</div>
+  </div>
+</div>
+
+<!-- ═══════════════ PIN OVERLAY ═══════════════ -->
+<div id="pin-overlay" class="overlay">
+  <div class="overlay-box">
+    <h2 id="pin-title">إدخال رمز PIN</h2>
+    <p id="pin-subtitle">أدخل رمز PIN للمتابعة</p>
+
+    <div class="pin-dots" id="pin-dots"></div>
+
+    <div class="pin-keypad">
+      <button class="pin-key" data-value="1">1</button>
+      <button class="pin-key" data-value="2">2</button>
+      <button class="pin-key" data-value="3">3</button>
+      <button class="pin-key" data-value="4">4</button>
+      <button class="pin-key" data-value="5">5</button>
+      <button class="pin-key" data-value="6">6</button>
+      <button class="pin-key" data-value="7">7</button>
+      <button class="pin-key" data-value="8">8</button>
+      <button class="pin-key" data-value="9">9</button>
+      <button class="pin-key empty"></button>
+      <button class="pin-key" data-value="0">0</button>
+      <button class="pin-key backspace" data-action="backspace">
+        <svg viewBox="0 0 24 24"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>
+      </button>
+    </div>
+
+    <div id="pin-error" class="pin-error"></div>
+
+    <button class="btn btn-primary btn-block" id="pin-submit">تأكيد</button>
+    <button class="pin-footer-btn" id="pin-extra-btn">دخول للوحة التحكم</button>
+  </div>
+</div>
+
+<!-- ═══════════════ BLACKOUT OVERLAY ═══════════════ -->
+<div id="blackout-overlay">
+  <h2>⏰ انتهى وقت المشاهدة</h2>
+  <p>لقد انتهت المدة المحددة من الوالدين</p>
+  <button class="pin-footer-btn" id="blackout-pin-btn" style="font-size:1.1rem;">إدخال رمز PIN للعودة</button>
+</div>
+
+<!-- ═══════════════ PARENT DASHBOARD ═══════════════ -->
+<div id="screen-dashboard" class="screen">
+  <div class="dash-header">
+    <h1>
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+      لوحة التحكم
+    </h1>
+    <button class="dash-logout" id="dash-logout-btn">العودة لوضع الطفل</button>
+  </div>
+
+  <div class="dash-tabs">
+    <button class="dash-tab active" data-tab="videos">📹 الفيديو</button>
+    <button class="dash-tab" data-tab="settings">⚙️ الإعدادات</button>
+    <button class="dash-tab" data-tab="firebase">☁️ Firebase</button>
+    <button class="dash-tab" data-tab="preview">👁️ معاينة</button>
+  </div>
+
+  <div class="dash-content">
+
+    <!-- Messages -->
+    <div id="dash-msg" class="msg" style="display:none;"></div>
+
+    <!-- ═══ Panel: Videos ═══ -->
+    <div id="dash-panel-videos" class="dash-panel active">
+      <div id="dash-attempts" style="margin-bottom:1rem;"></div>
+
+      <!-- Category management -->
+      <div id="dash-cat-header">
+        <h3 id="dash-cat-title">الأقسام</h3>
+        <div class="cat-actions">
+          <button class="btn btn-sm btn-secondary" id="dash-cat-add-btn">➕ قسم</button>
+        </div>
+      </div>
+      <div id="dash-cat-tabs" class="cat-tabs"></div>
+
+      <!-- Selected category info -->
+      <div id="dash-cat-selected" class="cat-selected"></div>
+
+      <!-- Add video to selected category -->
+      <div id="dash-cat-add-video" style="display:flex;gap:8px;margin-bottom:1rem;">
+        <input type="text" id="dash-video-url" placeholder="رابط YouTube, Vimeo, أو رابط مباشر..." style="flex:1;padding:0.65rem 0.9rem;border:1px solid var(--card-border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.05);color:#fff;font-size:0.9rem;outline:none;">
+        <input type="text" id="dash-video-title" placeholder="عنوان (اختياري)" style="width:140px;padding:0.65rem 0.9rem;border:1px solid var(--card-border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.05);color:#fff;font-size:0.9rem;outline:none;">
+        <button class="btn btn-primary" id="dash-add-video-btn">➕ إضافة</button>
+      </div>
+
+      <!-- Video list for selected category -->
+      <div id="dash-video-list" class="video-list">
+        <div class="empty-msg">اختر قسماً من الأعلى لعرض الفيديوهات</div>
+      </div>
+    </div>
+
+    <!-- ═══ Panel: Settings ═══ -->
+    <div id="dash-panel-settings" class="dash-panel">
+      <div class="settings-card">
+        <h3>⏱️ وقت المشاهدة</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>ساعات</label>
+            <input type="number" id="dash-hours" min="0" max="12" value="1">
+          </div>
+          <div class="form-group">
+            <label>دقائق</label>
+            <input type="number" id="dash-minutes" min="0" max="59" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>🔒 الحماية</h3>
+        <div class="form-group">
+          <label>عدد ضغطات الرجوع المطلوبة لإظهار PIN (1-10)</label>
+          <input type="number" id="dash-back-count" min="1" max="10" value="3">
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>🖥️ الشاشة</h3>
+        <label class="toggle">
+          <input type="checkbox" id="dash-fullscreen" checked>
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">شاشة كاملة تلقائية</span>
+        </label>
+      </div>
+
+      <div class="settings-card">
+        <h3>🔑 تغيير PIN</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>PIN الجديد (4-6 أرقام)</label>
+            <input type="password" id="dash-new-pin" inputmode="numeric" maxlength="6" placeholder="••••" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label>تأكيد PIN</label>
+            <input type="password" id="dash-confirm-pin" inputmode="numeric" maxlength="6" placeholder="••••" dir="ltr">
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="dash-change-pin">تغيير PIN</button>
+      </div>
+
+      <button class="btn btn-primary" id="dash-save-settings" style="width:100%;">💾 حفظ الإعدادات</button>
+    </div>
+
+    <!-- ═══ Panel: Firebase ═══ -->
+    <div id="dash-panel-firebase" class="dash-panel">
+      <div class="settings-card">
+        <h3>☁️ إعدادات Firebase (اختياري)</h3>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;">
+          ضبط Firebase يتيح مزامنة البيانات عبر الأجهزة. اتركه فارغاً للاستخدام المحلي فقط.
+        </p>
+        <div class="form-group">
+          <label>API Key</label>
+          <input type="text" id="dash-fb-apikey" placeholder="AIzaSy..." dir="ltr">
+        </div>
+        <div class="form-group">
+          <label>Project ID</label>
+          <input type="text" id="dash-fb-project" placeholder="my-project-12345" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label>Auth Domain (اختياري)</label>
+          <input type="text" id="dash-fb-auth" placeholder="my-project.firebaseapp.com" dir="ltr">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="dash-save-firebase">💾 حفظ</button>
+          <button class="btn btn-secondary" id="dash-clear-firebase">🗑️ إزالة</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Panel: Preview ═══ -->
+    <div id="dash-panel-preview" class="dash-panel">
+      <div class="settings-card">
+        <h3>👁️ معاينة الفيديو</h3>
+        <div class="input-with-btn">
+          <input type="text" id="dash-preview-url" placeholder="أدخل رابط فيديو للمعاينة..." dir="ltr">
+          <button class="btn btn-primary" id="dash-preview-btn">تشغيل</button>
+        </div>
+        <div id="dash-preview"></div>
+      </div>
+      <div class="settings-card">
+        <h3>🔍 تشخيص YouTube</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.8rem;">
+          اختبر إذا كان YouTube متاحاً من جهازك
+        </p>
+        <div class="input-with-btn">
+          <input type="text" id="dash-diagnose-url" value="jNQXAC9IVRw" placeholder="YouTube Video ID..." dir="ltr" style="font-family:monospace;">
+          <button class="btn btn-secondary" id="dash-diagnose-btn">🔍 تشخيص</button>
+        </div>
+        <div id="dash-diagnose-result" style="margin-top:0.8rem;font-size:0.85rem;white-space:pre-wrap;direction:ltr;font-family:monospace;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ Scripts ═══════════════ -->
+<script src="js/firebase-init.js"></script>
+<script src="js/video-handler.js"></script>
+<script src="js/timer.js"></script>
+<script src="js/lock.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/app.js"></script>
+
+<!-- Firebase SDK (optional - loaded only if configured) -->
+<script>
+  (function() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('kiidscreen_firebase_config') || 'null');
+      if (cfg && cfg.apiKey) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js';
+        tag.onload = function() {
+          const fsTag = document.createElement('script');
+          fsTag.src = 'https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js';
+          document.head.appendChild(fsTag);
+          const authTag = document.createElement('script');
+          authTag.src = 'https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js';
+          document.head.appendChild(authTag);
+        };
+        document.head.appendChild(tag);
+      }
+    } catch(e) {}
+  })();
+</script>
+
+</body>
+</html>
