@@ -1,17 +1,17 @@
 const CACHE = 'kiidscreen-v1';
 const FILES = [
-  '/',
-  '/index.html',
-  '/css/style.css',
-  '/js/app.js',
-  '/js/video-handler.js',
-  '/js/timer.js',
-  '/js/lock.js',
-  '/js/dashboard.js',
-  '/js/firebase-init.js',
-  '/manifest.json',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg'
+  './',
+  './index.html',
+  './css/style.css',
+  './js/app.js',
+  './js/video-handler.js',
+  './js/timer.js',
+  './js/lock.js',
+  './js/dashboard.js',
+  './js/firebase-init.js',
+  './manifest.json',
+  './icons/icon-192.svg',
+  './icons/icon-512.svg'
 ];
 
 self.addEventListener('install', e => {
